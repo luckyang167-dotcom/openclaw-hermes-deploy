@@ -241,8 +241,7 @@ for pat in "${EXCLUDE_PATTERNS[@]}"; do
 done
 
 # Also remove any -wal and -shm files (we used .backup, not raw copy)
-find "${SNAPSHOT_DIR}" -name "*-wal" -delete 2>/dev/null || true
-find "${SNAPSHOT_DIR}" -name "*-shm" -delete 2>/dev/null || true
+find "${SNAPSHOT_DIR}" -type f \( -name "*-wal" -o -name "*-shm" \) -exec rm -f {} + 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
 # 7.  SQLite integrity check on all snapshot DBs
@@ -260,7 +259,7 @@ ARCHIVE_NAME="agent-state.tar.zst"
 ARCHIVE_PATH="${WORKDIR}/${ARCHIVE_NAME}"
 
 cd "${SNAPSHOT_DIR}"
-tar cf - . | zstd -T0 -o "${ARCHIVE_PATH}"
+tar cf - . | zstd -o "${ARCHIVE_PATH}" || die "Archive creation failed"
 cd "${REPO_ROOT}"
 
 # -----------------------------------------------------------------------------
@@ -300,8 +299,10 @@ fi
 
 # Verify excluded paths are NOT in archive
 log_info "Verifying excluded paths are absent…"
-for excluded in "resume-bot" "weizhen" "venv/" "node_modules/" "*.bak" "*-wal" "*-shm"; do
-  if zstd -d -c "${ARCHIVE_PATH}" 2>/dev/null | tar tf - 2>/dev/null | grep -qi "$excluded"; then
+ARCHIVE_LIST="${WORKDIR}/archive-file-list.txt"
+zstd -d -c "${ARCHIVE_PATH}" 2>/dev/null | tar tf - > "${ARCHIVE_LIST}" 2>/dev/null || true
+for excluded in "resume-bot" "weizhen" "venv/" "node_modules/" ".bak" "-wal" "-shm"; do
+  if grep -qi "$excluded" "${ARCHIVE_LIST}" 2>/dev/null; then
     log_warn "Found potentially excluded path in archive: $excluded"
   fi
 done
