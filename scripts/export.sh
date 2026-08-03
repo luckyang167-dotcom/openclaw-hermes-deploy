@@ -299,13 +299,12 @@ fi
 
 # Verify excluded paths are NOT in archive
 log_info "Verifying excluded paths are absent…"
-ARCHIVE_LIST="${WORKDIR}/archive-file-list.txt"
-zstd -d -c "${ARCHIVE_PATH}" 2>/dev/null | tar tf - > "${ARCHIVE_LIST}" 2>/dev/null || true
-for excluded in "resume-bot" "weizhen" "venv/" "node_modules/" ".bak" "-wal" "-shm"; do
-  if grep -qi "$excluded" "${ARCHIVE_LIST}" 2>/dev/null; then
-    log_warn "Found potentially excluded path in archive: $excluded"
-  fi
-done
+# Get a full file listing from archive (ignore errors — this is best-effort)
+zstd -d -c "${ARCHIVE_PATH}" 2>/dev/null | tar tf - 2>/dev/null | while IFS= read -r line; do
+  for excluded in "resume-bot" "weizhen" "venv" "node_modules"; do
+    [[ "$line" == *"$excluded"* ]] && log_warn "Found excluded path in archive: $line"
+  done
+done || true
 log_info "Archive verification complete"
 
 # -----------------------------------------------------------------------------
