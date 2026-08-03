@@ -191,9 +191,9 @@ record_running_gateways() {
 
 stop_openclaw_gateway() {
   log_info "Stopping OpenClaw gateway…"
-  # Mask first to prevent systemd auto-restart, then stop
-  systemctl --user mask openclaw-gateway.service 2>/dev/null || true
+  # Stop via CLI first, then mask systemd service to prevent auto-restart
   openclaw gateway stop 2>/dev/null || true
+  systemctl --user mask openclaw-gateway.service 2>/dev/null || true
   systemctl --user stop openclaw-gateway.service 2>/dev/null || true
   # Wait for graceful shutdown
   for i in $(seq 1 30); do
@@ -221,13 +221,13 @@ stop_hermes_gateway() {
   if [[ "$profile" != "default" ]]; then
     svc="hermes-gateway-${profile}"
   fi
-  # Mask first to prevent systemd auto-restart, then stop
-  systemctl --user mask "${svc}.service" 2>/dev/null || true
+  # Stop via CLI first, then mask systemd service to prevent auto-restart
   if [[ "$profile" == "default" ]]; then
     hermes gateway stop 2>/dev/null || true
   else
     hermes --profile "$profile" gateway stop 2>/dev/null || true
   fi
+  systemctl --user mask "${svc}.service" 2>/dev/null || true
   systemctl --user stop "${svc}.service" 2>/dev/null || true
   for i in $(seq 1 30); do
     if ! pgrep -f "hermes.*${profile}.*gateway" &>/dev/null; then
@@ -253,18 +253,30 @@ unmask_hermes_gateway() {
 
 stop_all_gateways() {
   log_info "Stopping all gateways…"
-  stop_openclaw_gateway
-  stop_hermes_gateway default
-  stop_hermes_gateway coder
-  stop_hermes_gateway "money-maker"
+  # Stop all systemd services first (fast)
+  systemctl --user stop openclaw-gateway hermes-gateway hermes-gateway-coder hermes-gateway-money-maker 2>/dev/null || true
+  # Force-kill any remaining processes
+  pkill -TERM -f "openclaw.*gateway" 2>/dev/null || true
+  pkill -TERM -f "hermes.*gateway" 2>/dev/null || true
+  sleep 3
+  pkill -9 -f "openclaw.*gateway" 2>/dev/null || true
+  pkill -9 -f "hermes.*gateway" 2>/dev/null || true
+  sleep 1
+  log_info "All gateways stopped"
 }
 
 verify_no_gateway_processes() {
+  # Final aggressive cleanup — force-kill any remaining gateway processes
+  pkill -9 -f "openclaw.*gateway" 2>/dev/null || true
+  pkill -9 -f "hermes.*gateway" 2>/dev/null || true
+  sleep 2
   local leftover
   leftover=$(pgrep -f "openclaw.*gateway" 2>/dev/null || true)
   leftover+=$(pgrep -f "hermes.*gateway" 2>/dev/null || true)
   if [[ -n "$leftover" ]]; then
-    die "Gateway processes still running after stop: $leftover"
+    log_error "Gateway processes still running after force-kill: $leftover"
+    ps -p $leftover -o pid,cmd 2>/dev/null
+    die "Cannot proceed — gateway processes remain"
   fi
   log_info "No gateway processes running — OK"
 }
