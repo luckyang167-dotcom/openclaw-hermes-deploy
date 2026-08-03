@@ -253,16 +253,22 @@ unmask_hermes_gateway() {
 
 stop_all_gateways() {
   log_info "Stopping all gateways…"
-  # Stop all systemd services first (fast)
-  systemctl --user stop openclaw-gateway hermes-gateway hermes-gateway-coder hermes-gateway-money-maker 2>/dev/null || true
-  # Force-kill any remaining processes
-  pkill -TERM -f "openclaw.*gateway" 2>/dev/null || true
-  pkill -TERM -f "hermes.*gateway" 2>/dev/null || true
-  sleep 3
+  # Stop + mask in rapid succession to prevent auto-restart
+  for svc in openclaw-gateway hermes-gateway hermes-gateway-coder hermes-gateway-money-maker; do
+    systemctl --user stop "$svc" 2>/dev/null || true
+    systemctl --user mask "$svc" 2>/dev/null || true
+  done
+  # Force-kill any processes that escaped
   pkill -9 -f "openclaw.*gateway" 2>/dev/null || true
   pkill -9 -f "hermes.*gateway" 2>/dev/null || true
-  sleep 1
+  sleep 3
   log_info "All gateways stopped"
+}
+
+unmask_all_gateways() {
+  for svc in openclaw-gateway hermes-gateway hermes-gateway-coder hermes-gateway-money-maker; do
+    systemctl --user unmask "$svc" 2>/dev/null || true
+  done
 }
 
 verify_no_gateway_processes() {
@@ -330,6 +336,9 @@ start_all_gateways() {
 
 restore_running_gateways() {
   log_info "Restoring previously-running gateways…"
+  # Unmask all first (they may have been masked during export)
+  unmask_all_gateways
+  sleep 1
   if [[ -n "${OPENCLAW_GATEWAY_PID:-}" ]]; then
     start_openclaw_gateway || log_error "Failed to restore OpenClaw gateway"
   fi
