@@ -251,10 +251,18 @@ unmask_hermes_gateway() {
   systemctl --user unmask "${svc}.service" 2>/dev/null || true
 }
 
+# Service names as actually installed on the system
+GATEWAY_SERVICES=(
+  openclaw-gateway
+  hermes-gateway-default
+  hermes-gateway-coder
+  hermes-gateway-money-maker
+)
+
 stop_all_gateways() {
   log_info "Stopping all gateways…"
   # disable --now: stop AND prevent auto-restart
-  for svc in openclaw-gateway hermes-gateway hermes-gateway-coder hermes-gateway-money-maker; do
+  for svc in "${GATEWAY_SERVICES[@]}"; do
     systemctl --user disable --now "$svc" 2>/dev/null || true
   done
   # Force-kill any remaining processes
@@ -266,7 +274,7 @@ stop_all_gateways() {
 
 enable_all_gateways() {
   log_info "Re-enabling gateway services…"
-  for svc in openclaw-gateway hermes-gateway hermes-gateway-coder hermes-gateway-money-maker; do
+  for svc in "${GATEWAY_SERVICES[@]}"; do
     systemctl --user enable "$svc" 2>/dev/null || true
   done
   systemctl --user daemon-reload 2>/dev/null || true
@@ -302,8 +310,7 @@ verify_no_cron_schedulers() {
 
 start_openclaw_gateway() {
   log_info "Starting OpenClaw gateway…"
-  unmask_openclaw_gateway
-  openclaw gateway start 2>/dev/null || {
+  systemctl --user start openclaw-gateway 2>/dev/null || {
     log_error "Failed to start OpenClaw gateway"
     return 1
   }
@@ -313,18 +320,11 @@ start_openclaw_gateway() {
 start_hermes_gateway() {
   local profile="${1:-default}"
   log_info "Starting Hermes $profile gateway…"
-  unmask_hermes_gateway "$profile"
-  if [[ "$profile" == "default" ]]; then
-    hermes gateway start 2>/dev/null || {
-      log_error "Failed to start Hermes $profile gateway"
-      return 1
-    }
-  else
-    hermes --profile "$profile" gateway start 2>/dev/null || {
-      log_error "Failed to start Hermes $profile gateway"
-      return 1
-    }
-  fi
+  local svc="hermes-gateway-${profile}"
+  systemctl --user start "$svc" 2>/dev/null || {
+    log_error "Failed to start Hermes $profile gateway"
+    return 1
+  }
   log_info "Hermes $profile gateway started"
 }
 
