@@ -276,11 +276,13 @@ log_info "Archive: ${ARCHIVE_PATH}"
 log_info "Checksum: ${CHECKSUM_PATH}"
 log_info "Archive size: $(du -h "${ARCHIVE_PATH}" | cut -f1)"
 log_info "SHA-256: $(cat "${CHECKSUM_PATH}")"
-log_info "File count in archive: $(tar -tf "${ARCHIVE_PATH}" | wc -l)"
+set +o pipefail
+log_info "File count in archive: $(zstd -d -c "${ARCHIVE_PATH}" 2>/dev/null | tar tf - 2>/dev/null | wc -l)"
 
 # List top-level directories in archive (no content)
 log_info "Archive contents (top-level):"
-tar -tf "${ARCHIVE_PATH}" | head -50
+zstd -d -c "${ARCHIVE_PATH}" 2>/dev/null | tar tf - 2>/dev/null | head -50 || true
+set -o pipefail
 
 # -----------------------------------------------------------------------------
 # 11. Verify archive
@@ -299,12 +301,14 @@ fi
 
 # Verify excluded paths are NOT in archive
 log_info "Verifying excluded paths are absent…"
+set +o pipefail
 # Get a full file listing from archive (ignore errors — this is best-effort)
 zstd -d -c "${ARCHIVE_PATH}" 2>/dev/null | tar tf - 2>/dev/null | while IFS= read -r line; do
   for excluded in "resume-bot" "weizhen" "venv" "node_modules"; do
     [[ "$line" == *"$excluded"* ]] && log_warn "Found excluded path in archive: $line"
   done
 done || true
+set -o pipefail
 log_info "Archive verification complete"
 
 # -----------------------------------------------------------------------------
