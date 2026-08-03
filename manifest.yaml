@@ -1,70 +1,56 @@
-# =============================================================================
-# OpenClaw + Hermes Deploy — Manifest
-# =============================================================================
-# Describes the source machine, included agents/profiles, and snapshot metadata.
-# Paths use the portable placeholder ${TARGET_HOME}.
-# =============================================================================
-
-schema_version: 1
-source_host_id: linux-desktop
-source_home: /home/luckyang
-created_at: "2026-08-03T21:00:00+08:00"
-timezone: Asia/Shanghai
-openclaw_version: "2026.6.11"
-hermes_version: "0.19.0"
-node_version: "24.15.0"
-
-included_openclaw_agents:
-  - id: main
-    name: Rui
-    workspace: workspace
-  - id: job-hunter
-    name: 求职助手
-    workspace: workspace-job-hunter
-  - id: coding
-    name: 编程搭档
-    workspace: workspace-coding
-  - id: fitness
-    name: 铁哥
-    workspace: workspace-fitness
-
-included_hermes_profiles:
-  - default
-  - coder
-  - money-maker
-
-openclaw_cron_count: 6
-hermes_cron_count: 1
-
-snapshot_tag: null
-snapshot_filename: agent-state.tar.zst
-snapshot_sha256: null
-
-portable_path_placeholder: ${TARGET_HOME}
-
-excluded_paths:
-  - venv
-  - node_modules
-  - npm
-  - browser
-  - cache
-  - logs
-  - backups
-  - completions
-  - sandboxes
-  - webui
-  - weixin
-  - openclaw-weixin
-  - canvas
-  - bin
-  - home
-  - "*.bak"
-  - "*.bak.*"
-  - "*.tmp"
-  - "*.clobbered.*"
-  - resume-bot
-  - weizhen
-
+created_at: '2026-08-03T22:23:07+08:00'
 excluded_agents:
-  - resume-bot
-  - weizhen
+- resume-bot
+- weizhen
+excluded_paths:
+- venv
+- node_modules
+- npm
+- browser
+- cache
+- logs
+- backups
+- completions
+- sandboxes
+- webui
+- weixin
+- openclaw-weixin
+- canvas
+- bin
+- home
+- '*.bak'
+- '*.bak.*'
+- '*.tmp'
+- '*.clobbered.*'
+- resume-bot
+- weizhen
+hermes_cron_count: 1
+hermes_version: 0.19.0
+included_hermes_profiles:
+- default
+- coder
+- money-maker
+included_openclaw_agents:
+- id: main
+  name: Rui
+  workspace: workspace
+- id: job-hunter
+  name: 求职助手
+  workspace: workspace-job-hunter
+- id: coding
+  name: 编程搭档
+  workspace: workspace-coding
+- id: fitness
+  name: 铁哥
+  workspace: workspace-fitness
+node_version: 24.15.0
+openclaw_cron_count: 6
+openclaw_version: 2026.6.11
+portable_path_placeholder: ${TARGET_HOME}
+schema_version: 1
+snapshot_filename: agent-state.tar.zst
+snapshot_sha256: 4df79931e625e5cfa666c4e29db9b7ca1b586f7c6aab3f6398619d794b3507ef
+snapshot_tag: snapshot-20260803-142307Z
+source_home: /home/luckyang
+source_host_id: linux-desktop
+timezone: Asia/Shanghai
