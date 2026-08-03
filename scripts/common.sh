@@ -191,7 +191,10 @@ record_running_gateways() {
 
 stop_openclaw_gateway() {
   log_info "Stopping OpenClaw gateway…"
+  # Mask first to prevent systemd auto-restart, then stop
+  systemctl --user mask openclaw-gateway.service 2>/dev/null || true
   openclaw gateway stop 2>/dev/null || true
+  systemctl --user stop openclaw-gateway.service 2>/dev/null || true
   # Wait for graceful shutdown
   for i in $(seq 1 30); do
     if ! pgrep -f "openclaw.*gateway" &>/dev/null; then
@@ -206,14 +209,26 @@ stop_openclaw_gateway() {
   pkill -KILL -f "openclaw.*gateway" 2>/dev/null || true
 }
 
+unmask_openclaw_gateway() {
+  systemctl --user unmask openclaw-gateway.service 2>/dev/null || true
+}
+
 stop_hermes_gateway() {
   local profile="${1:-default}"
   log_info "Stopping Hermes $profile gateway…"
+  # Determine systemd service name
+  local svc="hermes-gateway"
+  if [[ "$profile" != "default" ]]; then
+    svc="hermes-gateway-${profile}"
+  fi
+  # Mask first to prevent systemd auto-restart, then stop
+  systemctl --user mask "${svc}.service" 2>/dev/null || true
   if [[ "$profile" == "default" ]]; then
     hermes gateway stop 2>/dev/null || true
   else
     hermes --profile "$profile" gateway stop 2>/dev/null || true
   fi
+  systemctl --user stop "${svc}.service" 2>/dev/null || true
   for i in $(seq 1 30); do
     if ! pgrep -f "hermes.*${profile}.*gateway" &>/dev/null; then
       log_info "Hermes $profile gateway stopped"
@@ -225,6 +240,15 @@ stop_hermes_gateway() {
   pkill -TERM -f "hermes.*${profile}.*gateway" 2>/dev/null || true
   sleep 2
   pkill -KILL -f "hermes.*${profile}.*gateway" 2>/dev/null || true
+}
+
+unmask_hermes_gateway() {
+  local profile="${1:-default}"
+  local svc="hermes-gateway"
+  if [[ "$profile" != "default" ]]; then
+    svc="hermes-gateway-${profile}"
+  fi
+  systemctl --user unmask "${svc}.service" 2>/dev/null || true
 }
 
 stop_all_gateways() {
@@ -259,6 +283,7 @@ verify_no_cron_schedulers() {
 
 start_openclaw_gateway() {
   log_info "Starting OpenClaw gateway…"
+  unmask_openclaw_gateway
   openclaw gateway start 2>/dev/null || {
     log_error "Failed to start OpenClaw gateway"
     return 1
@@ -269,6 +294,7 @@ start_openclaw_gateway() {
 start_hermes_gateway() {
   local profile="${1:-default}"
   log_info "Starting Hermes $profile gateway…"
+  unmask_hermes_gateway "$profile"
   if [[ "$profile" == "default" ]]; then
     hermes gateway start 2>/dev/null || {
       log_error "Failed to start Hermes $profile gateway"
