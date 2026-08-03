@@ -1,0 +1,123 @@
+{
+  // ============================================================================
+  // OpenClaw portable patch configuration
+  // ============================================================================
+  // This file contains agent definitions, model configs, and workspace paths
+  // rendered with the ${TARGET_HOME} placeholder.
+  //
+  // SECURITY: This file MUST NOT contain API keys, tokens, or credentials.
+  // Those belong in the private Release snapshot only.
+  // ============================================================================
+
+  "agents": {
+    "main": {
+      "name": "Rui",
+      "workspace": "${TARGET_HOME}/.openclaw/workspace",
+      "description": "Locky 的生活助手 & Agent 管家",
+      "emoji": "🎯",
+      "enabled": true
+    },
+    "coding": {
+      "name": "编程搭档",
+      "workspace": "${TARGET_HOME}/.openclaw/workspace-coding",
+      "description": "专业编程助手 - 代码编写、调试、重构、架构设计",
+      "enabled": true
+    },
+    "job-hunter": {
+      "name": "求职助手",
+      "workspace": "${TARGET_HOME}/.openclaw/workspace-job-hunter",
+      "description": "全能求职助手 - 人才市场分析、简历优化、投递执行",
+      "emoji": "🎯",
+      "enabled": true
+    },
+    "fitness": {
+      "name": "铁哥",
+      "workspace": "${TARGET_HOME}/.openclaw/workspace-fitness",
+      "description": "健身运动搭子 - 管撸铁、管打球、管进步",
+      "emoji": "💪",
+      "enabled": true
+    }
+  },
+
+  // Terminal / sandbox config (no secrets)
+  "terminal": {
+    "backend": "local",
+    "modal_mode": "auto",
+    "cwd": ".",
+    "timeout": 180,
+    "home_mode": "auto",
+    "auto_source_bashrc": true,
+    "persistent_shell": true
+  },
+
+  // Agent settings
+  "agent": {
+    "max_turns": 150,
+    "gateway_timeout": 1800,
+    "restart_drain_timeout": 180,
+    "api_max_retries": 3,
+    "tool_use_enforcement": "auto",
+    "task_completion_guidance": true,
+    "parallel_tool_call_guidance": true,
+    "environment_probe": true,
+    "coding_context": "auto",
+    "gateway_timeout_warning": 900,
+    "clarify_timeout": 600,
+    "gateway_notify_interval": 180,
+    "gateway_auto_continue_freshness": 3600,
+    "image_input_mode": "auto"
+  },
+
+  // Web settings
+  "web": {
+    "backend": "tavily",
+    "search_backend": "tavily"
+  },
+
+  // Browser settings
+  "browser": {
+    "inactivity_timeout": 120,
+    "command_timeout": 30,
+    "record_sessions": false,
+    "allow_private_urls": false,
+    "engine": "auto",
+    "auto_local_for_private_urls": true,
+    "dialog_policy": "must_respond",
+    "dialog_timeout_s": 300
+  },
+
+  // Model providers (base URLs only, NO api keys)
+  "providers_meta": {
+    "siliconflow": { "baseUrl": "https://api.siliconflow.cn/v1", "api": "openai-completions" },
+    "deepseek": { "baseUrl": "https://api.deepseek.com/v1" },
+    "ark": { "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3" },
+    "scnet": { "baseUrl": "https://api.scnet.cn/api/llm/v1" },
+    "xiaomi": { "baseUrl": "https://api.xiaomimimo.com/v1" },
+    "opencode-go": { "baseUrl": "https://opencode.ai/zen/go/v1" },
+    "openrouter": { "baseUrl": "https://openrouter.ai/api/v1" },
+    "ccsub": { "baseUrl": "https://www.ccsub.net/v1" },
+    "dashscope": { "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1" }
+  },
+
+  // Default model
+  "default_model": "deepseek-v4-pro",
+
+  // Fallback providers (no secrets)
+  "fallback_providers": ["ark"],
+
+  // Extensions enabled
+  "extensions": ["feishu-bot-chat"],
+
+  // Hooks enabled
+  "hooks": ["feishu-bot-chat"],
+
+  // Plugin skills enabled
+  "plugin_skills": [
+    "a2a-collaboration-guide", "a2a-interrupt", "a2a-mode-switch",
+    "a2a-result-merge", "a2a-status-check", "a2a-task-decompose",
+    "canvas", "feishu-doc", "feishu-drive", "feishu-perm",
+    "feishu-wiki", "tavily"
+  ],
+
+  "_note": "API keys, credentials, identity, and auth data are in the private Release snapshot only."
+}

@@ -1,0 +1,120 @@
+{
+  "_schema": "openclaw-cron-export-v1",
+  "_description": "Declarative OpenClaw cron job definitions. Restore is idempotent: match by id first, then by name. Same-name source jobs overwrite target. Target-only jobs are preserved but disabled on import.",
+  "exported_at": "2026-08-03T21:00:00+08:00",
+  "source_host": "linux-desktop",
+  "total": 6,
+  "jobs": [
+    {
+      "id": "80bc71ca-0f6f-4069-a293-d08062a498e3",
+      "name": "Memory Dreaming Promotion",
+      "description": "[managed-by=memory-core.short-term-promotion] Promote weighted short-term recalls into MEMORY.md",
+      "enabled": true,
+      "schedule": { "kind": "cron", "expr": "0 3 * * *" },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "__openclaw_memory_core_short_term_promotion_dream__",
+        "lightContext": true
+      },
+      "delivery": { "mode": "none" }
+    },
+    {
+      "id": "0f80ff61-e798-4068-809a-6ea97ca3e192",
+      "name": "pulse",
+      "description": "Pulse - 每天早上8点科技前沿脉搏简报",
+      "enabled": true,
+      "agentId": "main",
+      "schedule": { "kind": "cron", "expr": "0 8 * * *", "tz": "Asia/Shanghai" },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Pulse 简报 - 搜索今日科技进展，输出极简中文简报",
+        "model": "deepseek-v4-pro",
+        "timeoutSeconds": 600
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "feishu",
+        "to": "user:ou_REDACTED",
+        "accountId": "default"
+      }
+    },
+    {
+      "id": "f3dd5b09-f2d2-475e-8345-99a9ac6ca447",
+      "name": "morning-todo-planning",
+      "description": "每天早上9点提醒Locky做待办规划",
+      "enabled": true,
+      "agentId": "main",
+      "schedule": { "kind": "cron", "expr": "0 9 * * *", "tz": "Asia/Shanghai" },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "早上好 Locky！该梳理今天的待办计划了。",
+        "fallbacks": ["scnet/DeepSeek-V4-Flash", "scnet/GLM-5.2", "mimo/mimo-v2.5-pro"],
+        "timeoutSeconds": 300,
+        "toolsAllow": ["read","edit","write","apply_patch","exec","process","cron","image_generate","video_generate","get_goal","create_goal","update_goal","skill_workshop","update_plan","sessions_list","sessions_history","sessions_send","sessions_spawn","sessions_yield","subagents","session_status","web_search","web_fetch","image","memory_search","memory_get","code_execution","x_search"]
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "feishu",
+        "to": "ou_REDACTED"
+      }
+    },
+    {
+      "id": "e38c0a9a-9517-487d-88d5-11eaf41d25a7",
+      "name": "afternoon-pulse-check",
+      "description": "每天下午2点检查进度",
+      "enabled": true,
+      "agentId": "main",
+      "schedule": { "kind": "cron", "expr": "0 14 * * *", "tz": "Asia/Shanghai" },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "下午了 Locky！看看今天的待办推进得怎么样？",
+        "fallbacks": ["scnet/DeepSeek-V4-Flash", "scnet/GLM-5.2", "mimo/mimo-v2.5-pro"],
+        "timeoutSeconds": 300,
+        "toolsAllow": ["read","edit","write","apply_patch","exec","process","cron","image_generate","video_generate","get_goal","create_goal","update_goal","skill_workshop","update_plan","sessions_list","sessions_history","sessions_send","sessions_spawn","sessions_yield","subagents","session_status","web_search","web_fetch","image","memory_search","memory_get","code_execution","x_search"]
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "feishu",
+        "to": "ou_REDACTED"
+      }
+    },
+    {
+      "id": "c39f7aea-c2aa-4801-9916-68431572e829",
+      "name": "每日面经准备提醒",
+      "description": "每天下午2点提醒Locky准备面试和看面经",
+      "enabled": true,
+      "agentId": "main",
+      "sessionKey": "agent:main:feishu:direct:ou_REDACTED",
+      "schedule": { "kind": "cron", "expr": "0 14 * * *", "tz": "Asia/Shanghai" },
+      "sessionTarget": "main",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "systemEvent",
+        "text": "面经准备时间！牛客网刷目标公司面经，整理常见面试题，模拟回答2-3个高频问题"
+      }
+    },
+    {
+      "id": "a0019da0-06cc-4e42-8c60-a006016aa3a7",
+      "name": "每日英语学习提醒",
+      "description": "每天晚8点提醒Locky学习英语四六级和口语",
+      "enabled": true,
+      "agentId": "main",
+      "sessionKey": "agent:main:feishu:direct:ou_REDACTED",
+      "schedule": { "kind": "cron", "expr": "0 20 * * *", "tz": "Asia/Shanghai" },
+      "sessionTarget": "main",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "systemEvent",
+        "text": "英语学习时间！四六级：背单词+做真题阅读/听力。英语口语：跟读练习15min。"
+      }
+    }
+  ]
+}

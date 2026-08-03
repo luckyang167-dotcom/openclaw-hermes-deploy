@@ -1,0 +1,63 @@
+# =============================================================================
+# Hermes Money-Maker Profile — Distribution Definition
+# =============================================================================
+name: money-maker
+version: "1.0.0"
+description: "根据用户提供的信息、技能和资源，帮助制定赚钱策略、发现副业机会、优化收入结构"
+hermes_requires: "==0.19.0"
+
+env_requires:
+  node: "24.15.0"
+  python: ">=3.12"
+
+distribution_owned:
+  - SOUL.md
+  - config.yaml
+  - skills/
+  - .env.EXAMPLE
+
+# Cron jobs — DECLARATIVE only. Real execution state in Release snapshot.
+cron_jobs:
+  - id: "5f235cabdb05"
+    name: "具身智能每日市场扫描"
+    description: "搜索A股机器人概念股动态、社交媒体热点、产业最新融资/技术进展，结合微电子专业视角给出机会分析和行动建议"
+    schedule:
+      kind: cron
+      expr: "0 8 * * *"
+      display: "0 8 * * *"
+    enabled: true
+    skills:
+      - embodied-intelligence-market-watch
+      - earning-platform-analysis
+    primary_skill: "embodied-intelligence-market-watch"
+    model: null
+    provider: null
+    deliver: "origin"
+    origin:
+      platform: "feishu"
+      chat_id: "REDACTED"
+      chat_name: "REDACTED"
+    enabled_toolsets: null
+    workdir: null
+
+# Skills installed at this profile level
+skills:
+  - cron-job-patterns
+  - felo
+  - hermes
+  - money-making
+
+# Platforms configured (identifiers redacted)
+platforms:
+  - weixin
+  - feishu
+  - webhook
+
+# -----------------------------------------------------------------------------
+# Deployment notes:
+# - config.yaml is SANITIZED (no API keys). Real keys in Release snapshot.
+# - .env.EXAMPLE shows required env vars without real values.
+# - This profile lives at ~/.hermes/profiles/money-maker/
+# - Hermes gateway runs with: hermes --profile money-maker gateway run
+# - Restoring cron: match by id first, then name. Same-name source overwrites target.
+# -----------------------------------------------------------------------------

@@ -1,0 +1,134 @@
+# =============================================================================
+# OpenClaw + Hermes Deploy — .gitignore
+# =============================================================================
+# Secrets, credentials, databases, archives, and runtime state MUST NOT enter
+# ordinary Git history.  They belong ONLY in the private GitHub Release snapshot.
+# =============================================================================
+
+# --- archives & snapshots (Release only) ---
+*.tar
+*.tar.gz
+*.tar.zst
+*.tar.zst.sha256
+*.zip
+*.7z
+snapshot-*/
+agent-state/
+
+# --- credentials & secrets ---
+.env
+*.env
+!*.env.EXAMPLE
+!*.env.example
+auth.json
+auth.lock
+credentials/
+identity/
+devices/
+pairing/
+
+# --- databases & SQLite ---
+*.sqlite
+*.sqlite-*
+*.db
+*.db-shm
+*.db-wal
+*.db.dispatch.lock
+*.db.init.lock
+*.reindex-lock.sqlite
+
+# --- sessions & trajectories ---
+sessions/
+*.trajectory.jsonl
+*.trajectory-path.json
+*.jsonl
+*.jsonl.reset.*
+*.jsonl.deleted.*
+
+# --- runtime state ---
+state/
+gateway.lock
+gateway.pid
+gateway_state.json
+gateway-supervisor-restart-handoff.json
+gateway-starts.log
+processes.json
+exec-approvals.json
+ticker_heartbeat
+ticker_last_success
+.jobs.lock
+.tick.lock
+.lock
+*.pid
+
+# --- caches ---
+cache/
+__pycache__/
+*.pyc
+*.pyo
+models_dev_cache.json
+models_dev_cache*.tmp
+provider_models_cache.json
+ollama_cloud_models_cache.json
+context_length_cache.yaml
+.skills_prompt_snapshot.json
+audio_cache/
+image_cache/
+images/
+
+# --- logs ---
+logs/
+*.log
+!scripts/*.log
+
+# --- binaries & generated ---
+venv/
+node_modules/
+npm/
+bin/
+tirith/
+*.so
+*.o
+*.a
+
+# --- browser & sandbox ---
+browser/
+sandboxes/
+webui/
+weixin/
+openclaw-weixin/
+canvas/
+
+# --- backups ---
+backups/
+*.bak
+*.bak.*
+*.clobbered.*
+.openclaw.json.*
+
+# --- temp & lock ---
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- misc ---
+completions/
+history
+.history
+.hermes_history
+.update_check
+update-check.json.*
+feishu_seen_message_ids.json
+hindsight/
+home/
+
+# --- rollback archives (local only, never commit) ---
+rollback-*/
+.rollback/
+
+# --- test artifacts ---
+tests/tmp/
+tests/output/

@@ -1,0 +1,43 @@
+# =============================================================================
+# Hermes Default Profile — Distribution Definition
+# =============================================================================
+name: default
+version: "1.0.0"
+description: "Hermes Agent — default general-purpose assistant profile"
+hermes_requires: "==0.19.0"
+
+env_requires:
+  node: "24.15.0"
+  python: ">=3.12"
+
+distribution_owned:
+  - SOUL.md
+  - config.yaml
+  - skills/
+  - mcp.json
+  - .env.EXAMPLE
+
+# Cron jobs are DECLARATIVE only in this distribution.
+# Real cron state (execution history, ticker state) lives in the Release snapshot.
+# This profile currently has no cron jobs defined.
+cron_jobs: []
+
+# Skills installed at this profile level
+skills:
+  - hermes
+  - openclaw-mgmt
+  - productivity
+
+# Platforms configured (identifiers redacted)
+platforms:
+  - weixin
+  - feishu
+  - webhook
+
+# -----------------------------------------------------------------------------
+# Deployment notes:
+# - config.yaml is SANITIZED (no API keys). Real keys in Release snapshot.
+# - .env.EXAMPLE shows required env vars without real values.
+# - This profile uses ~/.hermes/ as its root directory.
+# - The "default" profile is the root-level Hermes config.
+# -----------------------------------------------------------------------------
