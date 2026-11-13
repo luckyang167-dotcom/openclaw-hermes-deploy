@@ -492,6 +492,85 @@ else
 fi
 
 # =============================================================================
+# Test 17: OpenClaw state-oc is restored
+# =============================================================================
+echo "=== Test 17: OpenClaw state-oc restore ==="
+STATE_EXTRACT="${TMPDIR}/state-extract"
+STATE_TARGET="${TMPDIR}/state-target"
+mkdir -p "${STATE_EXTRACT}/state-oc" "${STATE_TARGET}/state"
+echo "snapshot-session" > "${STATE_EXTRACT}/state-oc/session.txt"
+echo "stale" > "${STATE_TARGET}/state/old.txt"
+restore_openclaw_state_dir "$STATE_EXTRACT" "$STATE_TARGET"
+if [[ "$(cat "${STATE_TARGET}/state/session.txt" 2>/dev/null)" == "snapshot-session" && ! -f "${STATE_TARGET}/state/old.txt" ]]; then
+  pass "state-oc restored over stale OpenClaw state"
+else
+  fail "state-oc was not restored to OpenClaw state" ""
+fi
+
+# =============================================================================
+# Test 18: Path rendering stays inside the deployed tree
+# =============================================================================
+echo "=== Test 18: Deployed path rendering ==="
+RENDER_OC="${TMPDIR}/render-oc"
+RENDER_HM="${TMPDIR}/render-hm"
+mkdir -p "$RENDER_OC" "$RENDER_HM"
+printf '%s\n' '{"workspace":"${TARGET_HOME}/.openclaw/workspace"}' > "${RENDER_OC}/openclaw.json"
+PATCH_BEFORE=$(cat "${REPO_ROOT}/openclaw/config/openclaw.patch.json5")
+render_paths "$RENDER_OC" "$RENDER_HM" "/home/testuser"
+RENDERED=$(cat "${RENDER_OC}/openclaw.json")
+PATCH_AFTER=$(cat "${REPO_ROOT}/openclaw/config/openclaw.patch.json5")
+if [[ "$RENDERED" == '{"workspace":"/home/testuser/.openclaw/workspace"}' ]]; then
+  pass "Placeholder renders to the target home"
+else
+  fail "Placeholder rendered incorrectly" "$RENDERED"
+fi
+if [[ "$PATCH_BEFORE" == "$PATCH_AFTER" ]]; then
+  pass "Path rendering does not rewrite the git checkout"
+else
+  fail "Path rendering modified the git checkout" ""
+fi
+
+# =============================================================================
+# Test 19: Config path check ignores memory notes
+# =============================================================================
+echo "=== Test 19: Absolute path check ==="
+if check_no_absolute_paths; then
+  pass "Config path check passes with memory notes present"
+else
+  fail "Config path check false-failed on memory notes" ""
+fi
+
+# =============================================================================
+# Test 20: Promote health check and integrity counter
+# =============================================================================
+echo "=== Test 20: Promote health check ==="
+if printf '%s' 'hermes gateway run' | grep -Eq 'hermes.*default.*gateway'; then
+  fail "profile-ordered pgrep unexpectedly matched the default gateway" ""
+else
+  pass "profile-ordered pgrep misses 'hermes gateway run'"
+fi
+if printf '%s' 'hermes-gateway-default' | grep -Eq 'hermes.*default.*gateway'; then
+  fail "profile-ordered pgrep unexpectedly matched hermes-gateway-default" ""
+else
+  pass "profile-ordered pgrep misses hermes-gateway-default"
+fi
+if grep -q 'systemctl --user is-active' "${REPO_ROOT}/scripts/promote.sh" && grep -q 'GATEWAY_SERVICES' "${REPO_ROOT}/scripts/promote.sh"; then
+  pass "promote health check uses systemd unit state"
+else
+  fail "promote health check does not follow the units it starts" ""
+fi
+if grep -q 'hermes\.\*\${profile}\.\*gateway' "${REPO_ROOT}/scripts/promote.sh"; then
+  fail "promote still uses the broken profile pgrep" ""
+else
+  pass "promote no longer uses profile-ordered pgrep"
+fi
+if grep -q '((DB_ERRORS++))' "${REPO_ROOT}/scripts/deploy.sh" "${REPO_ROOT}/scripts/rollback.sh"; then
+  fail "integrity counter still aborts under set -e" ""
+else
+  pass "integrity counter is safe under set -e"
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 echo ""

@@ -439,22 +439,59 @@ verify_sha256() {
 # -----------------------------------------------------------------------------
 PORTABLE_PLACEHOLDER='${TARGET_HOME}'
 
-render_paths() {
-  local target_home="${1:-$HOME}"
-  find "$REPO_ROOT" -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.json" -o -name "*.json5" -o -name "*.md" -o -name "*.sh" -o -name "*.txt" -o -name "*.cfg" -o -name "*.conf" -o -name "*.toml" \) \
-    -exec sed -i "s|\\\${TARGET_HOME}|$target_home|g" {} + 2>/dev/null || true
+# Restore OpenClaw's state directory from a snapshot extract.
+# export.sh stores it as state-oc so it does not collide with other state dirs.
+restore_openclaw_state_dir() {
+  local extract_dir="$1"
+  local target_oc="$2"
+  local src=""
+  if [[ -d "${extract_dir}/state-oc" ]]; then
+    src="${extract_dir}/state-oc"
+  elif [[ -d "${extract_dir}/state" ]]; then
+    src="${extract_dir}/state"
+  else
+    return 0
+  fi
+  log_info "Restoring OpenClaw state from $(basename "$src")"
+  mkdir -p "$target_oc"
+  rm -rf "${target_oc}/state"
+  cp -a "$src" "${target_oc}/state"
 }
 
+# Rewrite ${TARGET_HOME} inside the deployed trees.
+# $1 and $2 are the deployed OpenClaw and Hermes directories.
+# $3 is the home directory to substitute (default: $HOME).
+# The git checkout is left untouched — rewriting it would bake a machine path
+# into templates and scripts.
+render_paths() {
+  local target_oc="$1"
+  local target_hm="${2:-}"
+  local target_home="${3:-$HOME}"
+  local root
+  for root in "$target_oc" "$target_hm"; do
+    if [[ -z "$root" || ! -d "$root" ]]; then
+      continue
+    fi
+    find "$root" -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.json" -o -name "*.json5" -o -name "*.cfg" -o -name "*.conf" -o -name "*.toml" \) \
+      -exec sed -i "s|\${TARGET_HOME}|${target_home}|g" {} + 2>/dev/null || true
+  done
+}
+
+# Portable templates must not contain this machine's home. Agent memory notes
+# quote absolute paths as prose and are not path configuration.
 check_no_absolute_paths() {
   local forbidden="/home/luckyang"
   local matches
-  matches=$(grep -rl "$forbidden" "$REPO_ROOT"/openclaw/ "$REPO_ROOT"/hermes/ 2>/dev/null || true)
+  matches=$(grep -rl \
+    --include="*.yaml" --include="*.yml" --include="*.json" --include="*.json5" \
+    --include="*.toml" --include="*.cfg" --include="*.conf" \
+    "$forbidden" "$REPO_ROOT/openclaw" "$REPO_ROOT/hermes" 2>/dev/null || true)
   if [[ -n "$matches" ]]; then
     log_error "Found hardcoded paths containing '$forbidden':"
     echo "$matches"
     return 1
   fi
-  log_info "No hardcoded /home/luckyang paths found — OK"
+  log_info "No hardcoded /home/luckyang paths found in config files — OK"
 }
 
 # -----------------------------------------------------------------------------

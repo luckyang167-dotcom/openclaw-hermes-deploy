@@ -172,7 +172,9 @@ for dir in credentials identity devices extensions hooks plugin-skills memory me
   fi
 done
 
-for dir in state workspace-attestations; do
+restore_openclaw_state_dir "$EXTRACT_DIR" "$TARGET_OC"
+
+for dir in workspace-attestations; do
   SRC="${EXTRACT_DIR}/${dir}"
   DST="${TARGET_OC}/${dir}"
   if [[ -d "$SRC" ]]; then
@@ -278,7 +280,7 @@ fi
 # 10. Render paths
 # -----------------------------------------------------------------------------
 log_info "Rendering portable paths to $HOME…"
-render_paths "$TARGET_OC" "$TARGET_HM"
+render_paths "$TARGET_OC" "$TARGET_HM" "$HOME"
 
 # -----------------------------------------------------------------------------
 # 11. Fix permissions
@@ -313,7 +315,9 @@ log_info "Running database integrity checks…"
 DB_ERRORS=0
 while IFS= read -r -d '' db; do
   if ! sqlite_integrity_check "$db"; then
-    ((DB_ERRORS++))
+    # Arithmetic ((var++)) returns 1 when the counter is 0 and aborts under set -e
+    # before the rollback path is reported.
+    DB_ERRORS=$((DB_ERRORS + 1))
   fi
 done < <(find "$TARGET_OC" "$TARGET_HM" -type f \( -name "*.db" -o -name "*.sqlite" \) -print0 2>/dev/null)
 

@@ -41,6 +41,7 @@ require_host_switching
 NEXT_HOST_ID=$(get_control_field next_host_id)
 GEN=$(get_control_field generation)
 CTL_SNAPSHOT=$(get_control_field snapshot_tag)
+PREV_HOST_ID=$(get_control_field host_id)
 
 if [[ "$NEXT_HOST_ID" != "$HOST_ID" ]]; then
   die "next_host_id is '$NEXT_HOST_ID', but this host is '$HOST_ID'.  Refusing to promote."
@@ -86,7 +87,7 @@ if ! git push origin main; then
   log_error "Reverting control to switching state…"
   write_control "{
     \"status\": \"switching\",
-    \"host_id\": \"\",
+    \"host_id\": \"${PREV_HOST_ID}\",
     \"next_host_id\": \"${HOST_ID}\",
     \"snapshot_tag\": \"${SNAPSHOT_TAG}\",
     \"generation\": ${GEN},
@@ -102,9 +103,10 @@ log_info "Starting gateways…"
 if ! start_all_gateways; then
   log_error "Gateway start failed!"
   log_error "Reverting control to switching state…"
+  stop_all_gateways || true
   write_control "{
     \"status\": \"switching\",
-    \"host_id\": \"\",
+    \"host_id\": \"${PREV_HOST_ID}\",
     \"next_host_id\": \"${HOST_ID}\",
     \"snapshot_tag\": \"${SNAPSHOT_TAG}\",
     \"generation\": ${GEN},
@@ -125,18 +127,15 @@ sleep 5
 
 HEALTH_OK=true
 
-if ! pgrep -f "openclaw.*gateway" &>/dev/null; then
-  log_error "OpenClaw gateway not running"
-  HEALTH_OK=false
-else
-  log_info "OpenClaw gateway running — OK"
-fi
-
-for profile in default coder "money-maker"; do
-  if pgrep -f "hermes.*${profile}.*gateway" &>/dev/null; then
-    log_info "Hermes $profile gateway running — OK"
+# Judge the units start_all_gateways actually starts. A pgrep of
+# hermes.*<profile>.*gateway never matches the default gateway: its argv is
+# "hermes gateway run" (no "default" token) and the unit is hermes-gateway-default
+# ("gateway" comes before "default"). That false failure rolled every promote back.
+for svc in "${GATEWAY_SERVICES[@]}"; do
+  if systemctl --user is-active --quiet "$svc"; then
+    log_info "$svc running — OK"
   else
-    log_error "Hermes $profile gateway not running"
+    log_error "$svc not running"
     HEALTH_OK=false
   fi
 done
@@ -144,9 +143,10 @@ done
 if ! $HEALTH_OK; then
   log_error "Health check failed — some gateways not running"
   log_error "Reverting to switching state…"
+  stop_all_gateways || true
   write_control "{
     \"status\": \"switching\",
-    \"host_id\": \"\",
+    \"host_id\": \"${PREV_HOST_ID}\",
     \"next_host_id\": \"${HOST_ID}\",
     \"snapshot_tag\": \"${SNAPSHOT_TAG}\",
     \"generation\": ${GEN},

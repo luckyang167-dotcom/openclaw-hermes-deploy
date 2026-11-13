@@ -112,7 +112,7 @@ log_info "Validating restored state…"
 DB_ERRORS=0
 while IFS= read -r -d '' db; do
   if ! sqlite_integrity_check "$db"; then
-    ((DB_ERRORS++))
+    DB_ERRORS=$((DB_ERRORS + 1))
   fi
 done < <(find "${HOME}/.openclaw" "${HOME}/.hermes" -type f \( -name "*.db" -o -name "*.sqlite" \) -print0 2>/dev/null)
 
