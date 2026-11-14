@@ -492,6 +492,72 @@ else
 fi
 
 # =============================================================================
+# Test 17: write_control parses JSON, including null
+# =============================================================================
+echo "=== Test 17: write_control JSON merge ==="
+CTL_BACKUP="$CONTROL_FILE"
+TEST_CTL="${TMPDIR}/write-control.json"
+cat > "$TEST_CTL" <<'EOF'
+{
+  "schema_version": 1,
+  "host_id": "linux-desktop",
+  "status": "switching",
+  "generation": 4,
+  "snapshot_tag": "snapshot-old",
+  "next_host_id": "wsl2-standby",
+  "updated_at": "2026-08-03T22:23:23+08:00"
+}
+EOF
+CONTROL_FILE="$TEST_CTL"
+if write_control "{
+  \"host_id\": \"wsl2-standby\",
+  \"status\": \"active\",
+  \"next_host_id\": null,
+  \"snapshot_tag\": \"snapshot-new\",
+  \"generation\": 5,
+  \"updated_at\": \"2026-11-14T11:01:44+00:00\"
+}"; then
+  if python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["host_id"] == "wsl2-standby", d
+assert d["status"] == "active", d
+assert d["next_host_id"] is None, d
+assert d["schema_version"] == 1, d
+assert d["generation"] == 5, d
+assert d["snapshot_tag"] == "snapshot-new", d
+' "$TEST_CTL"; then
+    pass "promote control update accepts JSON null and keeps schema_version"
+  else
+    fail "promote control update wrote the wrong document" ""
+  fi
+else
+  fail "write_control rejected JSON null (promote cannot mark the host active)" ""
+fi
+if write_control "{
+  \"status\": \"switching\",
+  \"next_host_id\": \"wsl2-standby\",
+  \"snapshot_tag\": \"snapshot-new\",
+  \"generation\": 6,
+  \"updated_at\": \"2026-11-14T11:02:00+00:00\"
+}"; then
+  if python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["host_id"] == "wsl2-standby", d
+assert d["status"] == "switching", d
+assert d["generation"] == 6, d
+' "$TEST_CTL"; then
+    pass "partial control update preserves host_id"
+  else
+    fail "partial control update dropped host_id" ""
+  fi
+else
+  fail "demote-style control update failed" ""
+fi
+CONTROL_FILE="$CTL_BACKUP"
+
+# =============================================================================
 # Summary
 # =============================================================================
 echo ""

@@ -51,15 +51,20 @@ get_control_field() {
   python3 -c "import sys,json; print(json.load(open('$CONTROL_FILE')).get('$field',''))"
 }
 
+# Callers pass a JSON object. It must be parsed as JSON: a Python literal
+# rejects null, so promote's next_host_id update always died before the host
+# was marked active and before any gateway was started.
 write_control() {
-  python3 -c "
+  python3 - "$CONTROL_FILE" "$1" <<'PY'
 import json, sys
-data = json.load(open('$CONTROL_FILE'))
-data.update($1)
-with open('$CONTROL_FILE','w') as f:
+path, payload = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    data = json.load(f)
+data.update(json.loads(payload))
+with open(path, "w") as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
-    f.write('\n')
-"
+    f.write("\n")
+PY
 }
 
 require_host_active() {
