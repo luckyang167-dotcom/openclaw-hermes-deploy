@@ -492,6 +492,55 @@ else
 fi
 
 # =============================================================================
+# Test 17: SQLite backup keeps commits that exist only in the WAL
+# =============================================================================
+echo "=== Test 17: SQLite backup preserves uncheckpointed WAL commits ==="
+WAL_SRC="${TMPDIR}/wal-src.db"
+WAL_DEST="${TMPDIR}/wal-snap/state.db"
+mkdir -p "$(dirname "$WAL_DEST")"
+python3 - "$WAL_SRC" "${TMPDIR}/wal-writer.ready" "${TMPDIR}/wal-writer.done" <<'PY' &
+import sqlite3, sys, time, os
+src, ready, done = sys.argv[1:]
+conn = sqlite3.connect(src)
+conn.execute("PRAGMA journal_mode=WAL")
+conn.execute("CREATE TABLE t(id INTEGER PRIMARY KEY, v TEXT)")
+conn.execute("INSERT INTO t(v) VALUES ('checkpointed')")
+conn.commit()
+conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+conn.execute("INSERT INTO t(v) VALUES ('only-in-wal')")
+conn.commit()
+open(ready, "w").close()
+deadline = time.time() + 30
+while time.time() < deadline and not os.path.exists(done):
+    time.sleep(0.05)
+conn.close()
+PY
+WAL_WRITER_PID=$!
+for _ in $(seq 1 50); do
+  [[ -f "${TMPDIR}/wal-writer.ready" ]] && break
+  sleep 0.1
+done
+if [[ ! -f "${TMPDIR}/wal-writer.ready" ]]; then
+  echo wal-writer-done > "${TMPDIR}/wal-writer.done"
+  wait "$WAL_WRITER_PID" 2>/dev/null || true
+  fail "WAL writer did not become ready" ""
+else
+  if sqlite_safe_backup "$WAL_SRC" "$WAL_DEST"; then
+    rm -f "${WAL_DEST}-wal" "${WAL_DEST}-shm"
+    WAL_ROWS=$(python3 -c "import sqlite3; print(','.join(r[0] for r in sqlite3.connect('$WAL_DEST').execute('select v from t order by id')))")
+    if [[ "$WAL_ROWS" == "checkpointed,only-in-wal" ]]; then
+      pass "Snapshot kept the commit that lived only in the WAL"
+    else
+      fail "Snapshot dropped WAL commits" "rows=$WAL_ROWS"
+    fi
+  else
+    fail "sqlite_safe_backup failed" ""
+  fi
+  echo wal-writer-done > "${TMPDIR}/wal-writer.done"
+  wait "$WAL_WRITER_PID" 2>/dev/null || true
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 echo ""

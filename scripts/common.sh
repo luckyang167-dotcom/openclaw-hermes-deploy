@@ -360,38 +360,38 @@ restore_running_gateways() {
 sqlite_safe_backup() {
   local src="$1" dest="$2"
   log_info "Backing up SQLite: $src → $dest"
-  python3 -c "
-import sqlite3, shutil, os
+  # The snapshot must be one consistent database file. export.sh deletes
+  # -wal/-shm afterwards because this uses the backup API, which folds
+  # committed WAL frames into dest. A raw copy plus that deletion drops
+  # every commit that was still only in the WAL after a SIGKILL.
+  if ! python3 - "$src" "$dest" <<'PY'
+import os, pathlib, sqlite3, sys
+
+src, dest = sys.argv[1], sys.argv[2]
+parent = os.path.dirname(dest)
+if parent:
+    os.makedirs(parent, exist_ok=True)
+for path in (dest, dest + "-wal", dest + "-shm"):
+    if os.path.lexists(path):
+        os.remove(path)
+
+source_path = pathlib.Path(src)
+if not source_path.is_absolute():
+    source_path = source_path.resolve()
+source = sqlite3.connect(source_path.as_uri() + "?mode=ro", uri=True)
 try:
-    src_db = sqlite3.connect('$src')
-    # Use iterdump as a portable alternative to .backup
-    with open('$dest', 'w') as f:
-        for line in src_db.iterdump():
-            f.write('%s\\n' % line)
-    src_db.close()
-    # Now create actual DB from dump
-    dest_db = sqlite3.connect('$dest')
-    with open('$dest', 'r') as f:
-        dest_db.executescript(f.read())
-    dest_db.close()
-    # Reload and do iterdump again for proper DB
-    src_db2 = sqlite3.connect('file:$src?mode=ro', uri=True)
-    dest_db2 = sqlite3.connect('$dest')
-    src_db2.backup(dest_db2)
-    dest_db2.close()
-    src_db2.close()
-except Exception as e:
-    # Fallback: direct file copy (less safe but works for stopped gateways)
-    import shutil
-    shutil.copy2('$src', '$dest')
-    # Also copy WAL/SHM if they exist
-    for ext in ['-wal', '-shm']:
-        if os.path.exists('$src' + ext):
-            shutil.copy2('$src' + ext, '$dest' + ext)
-" 2>/dev/null || {
+    target = sqlite3.connect(dest)
+    try:
+        source.backup(target)
+    finally:
+        target.close()
+finally:
+    source.close()
+PY
+  then
     log_error "SQLite backup failed for $src"
     return 1
-  }
+  fi
 }
 
 sqlite_integrity_check() {
