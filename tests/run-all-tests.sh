@@ -492,6 +492,82 @@ else
 fi
 
 # =============================================================================
+# Test 17: A failed export must re-enable gateways it already stopped
+# =============================================================================
+echo "=== Test 17: Failed export restores gateways ==="
+
+# Failure after stop_all_gateways: units were disabled, control is still active.
+RESTORE_MARKER="${TMPDIR}/export-restored"
+rm -f "$RESTORE_MARKER"
+if (
+  set -euo pipefail
+  restore_running_gateways() { echo restored > "$RESTORE_MARKER"; }
+  log_warn() { :; }
+  log_error() { :; }
+  GATEWAYS_STOPPED=true
+  trap 'restore_gateways_if_export_failed $?' EXIT
+  false
+); then
+  fail "Failed export returned success" ""
+elif [[ -f "$RESTORE_MARKER" ]]; then
+  pass "Failed export restores gateways that were already stopped"
+else
+  fail "Failed export left gateways stopped" ""
+fi
+
+# Successful export, including --keep-stopped, must not start them again here.
+rm -f "$RESTORE_MARKER"
+if (
+  set -euo pipefail
+  restore_running_gateways() { echo restored > "$RESTORE_MARKER"; }
+  log_warn() { :; }
+  log_error() { :; }
+  GATEWAYS_STOPPED=true
+  trap 'restore_gateways_if_export_failed $?' EXIT
+  true
+); then
+  if [[ -f "$RESTORE_MARKER" ]]; then
+    fail "Successful export restored gateways from the failure trap" ""
+  else
+    pass "Successful export does not use the failure-restore path"
+  fi
+else
+  fail "Successful export returned failure" ""
+fi
+
+# Dying before the gateways are stopped must not start anything.
+rm -f "$RESTORE_MARKER"
+if (
+  set -euo pipefail
+  restore_running_gateways() { echo restored > "$RESTORE_MARKER"; }
+  log_warn() { :; }
+  log_error() { :; }
+  GATEWAYS_STOPPED=false
+  trap 'restore_gateways_if_export_failed $?' EXIT
+  false
+); then
+  fail "Pre-stop failure returned success" ""
+elif [[ -f "$RESTORE_MARKER" ]]; then
+  fail "Pre-stop failure started gateways" ""
+else
+  pass "Failure before stop does not start gateways"
+fi
+
+# export.sh must arm the trap only after it has disabled the units.
+if grep -n "GATEWAYS_STOPPED=true" "${REPO_ROOT}/scripts/export.sh" >/dev/null \
+  && grep -n "restore_gateways_if_export_failed" "${REPO_ROOT}/scripts/export.sh" >/dev/null; then
+  stop_line=$(grep -n "GATEWAYS_STOPPED=true" "${REPO_ROOT}/scripts/export.sh" | head -1 | cut -d: -f1)
+  verify_line=$(grep -n "verify_no_gateway_processes" "${REPO_ROOT}/scripts/export.sh" | head -1 | cut -d: -f1)
+  if [[ "$stop_line" -lt "$verify_line" ]]; then
+    pass "Export marks gateways stopped before later abort points"
+  else
+    fail "GATEWAYS_STOPPED is set after a point that can abort" "stop=$stop_line verify=$verify_line"
+  fi
+else
+  fail "export.sh does not restore gateways on failure" ""
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 echo ""

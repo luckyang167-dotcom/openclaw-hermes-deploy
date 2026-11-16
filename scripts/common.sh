@@ -337,7 +337,8 @@ start_all_gateways() {
 
 restore_running_gateways() {
   log_info "Restoring previously-running gateways…"
-  # Re-enable services first
+  # Re-enable services first. stop_all_gateways used `disable --now`, so a
+  # start without enable would not survive the next login.
   enable_all_gateways
   sleep 1
   if [[ -n "${OPENCLAW_GATEWAY_PID:-}" ]]; then
@@ -352,6 +353,20 @@ restore_running_gateways() {
   if [[ -n "${HERMES_MM_PID:-}" ]]; then
     start_hermes_gateway "money-maker" || log_error "Failed to restore Hermes money-maker gateway"
   fi
+}
+
+# export.sh stops and disables every gateway before it snapshots. If the
+# snapshot then dies (release upload, archive check, integrity check), the
+# EXIT trap must bring those units back: control status is still "active",
+# so the standby will not promote and this host would stay dark.
+# rc 0 covers a finished export, including --keep-stopped for demote.
+restore_gateways_if_export_failed() {
+  local rc="${1:?}"
+  if [[ "$rc" -eq 0 || "${GATEWAYS_STOPPED:-false}" != true ]]; then
+    return 0
+  fi
+  log_warn "Export failed after stopping gateways — restoring them so this active host keeps serving"
+  restore_running_gateways || log_error "Failed to restore gateways after a failed export"
 }
 
 # -----------------------------------------------------------------------------

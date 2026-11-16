@@ -42,7 +42,14 @@ record_running_gateways
 # -----------------------------------------------------------------------------
 umask 077
 WORKDIR=$(create_secure_tmpdir)
-trap 'rm -rf "$WORKDIR"' EXIT
+export_cleanup() {
+  local rc=$?
+  if [[ -n "${WORKDIR:-}" && -d "$WORKDIR" ]]; then
+    rm -rf "$WORKDIR"
+  fi
+  restore_gateways_if_export_failed "$rc"
+}
+trap export_cleanup EXIT
 log_info "Working directory: $WORKDIR"
 
 SNAPSHOT_DIR="${WORKDIR}/snapshot"
@@ -52,6 +59,8 @@ mkdir -p "$SNAPSHOT_DIR"
 # 4.  Stop gateways
 # -----------------------------------------------------------------------------
 stop_all_gateways
+# Set before any later `die` / set -e abort. The EXIT trap reads this.
+GATEWAYS_STOPPED=true
 sleep 2
 verify_no_gateway_processes
 verify_no_cron_schedulers
