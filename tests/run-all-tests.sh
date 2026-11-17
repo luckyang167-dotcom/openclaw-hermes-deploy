@@ -492,6 +492,72 @@ else
 fi
 
 # =============================================================================
+# Test 17: Snapshot install must not replay a SIGKILL'd WAL
+# =============================================================================
+echo "=== Test 17: SQLite install drops leftover WAL ==="
+WAL_LIVE="${TMPDIR}/wal-live"
+WAL_SNAP="${TMPDIR}/wal-snap"
+WAL_CTRL="${TMPDIR}/wal-ctrl"
+WAL_READY="${TMPDIR}/wal-ready"
+mkdir -p "$WAL_LIVE" "$WAL_SNAP" "$WAL_CTRL"
+python3 - "$WAL_LIVE/state.db" "$WAL_READY" <<'PY' &
+import sqlite3, sys, time
+src, ready = sys.argv[1], sys.argv[2]
+conn = sqlite3.connect(src)
+conn.execute("PRAGMA journal_mode=WAL")
+conn.execute("CREATE TABLE t(v TEXT)")
+conn.execute("INSERT INTO t VALUES ('stale-local')")
+conn.commit()
+open(ready, "w").close()
+time.sleep(60)
+PY
+WAL_WRITER_PID=$!
+for _ in $(seq 1 50); do
+  [[ -f "$WAL_READY" ]] && break
+  sleep 0.1
+done
+if [[ ! -f "$WAL_READY" ]]; then
+  kill -9 "$WAL_WRITER_PID" 2>/dev/null || true
+  wait "$WAL_WRITER_PID" 2>/dev/null || true
+  fail "WAL writer did not become ready" ""
+else
+  kill -9 "$WAL_WRITER_PID" 2>/dev/null || true
+  wait "$WAL_WRITER_PID" 2>/dev/null || true
+  python3 - "$WAL_SNAP/state.db" <<'PY'
+import sqlite3, sys
+conn = sqlite3.connect(sys.argv[1])
+conn.execute("PRAGMA journal_mode=WAL")
+conn.execute("CREATE TABLE t(v TEXT)")
+conn.execute("INSERT INTO t VALUES ('from-snapshot')")
+conn.commit()
+conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+conn.close()
+PY
+  rm -f "$WAL_SNAP/state.db-wal" "$WAL_SNAP/state.db-shm"
+  if [[ ! -f "$WAL_LIVE/state.db-wal" ]]; then
+    fail "SIGKILL did not leave a WAL to replay" ""
+  else
+    for sidecar in state.db state.db-wal state.db-shm; do
+      [[ -f "$WAL_LIVE/$sidecar" ]] && cp -a "$WAL_LIVE/$sidecar" "$WAL_CTRL/"
+    done
+    CTRL_ROWS=$(python3 -c "import sqlite3; print(','.join(r[0] for r in sqlite3.connect('$WAL_CTRL/state.db').execute('select v from t')))")
+    install_sqlite_file "$WAL_SNAP/state.db" "$WAL_LIVE/state.db"
+    LIVE_ROWS=$(python3 -c "import sqlite3; print(','.join(r[0] for r in sqlite3.connect('$WAL_LIVE/state.db').execute('select v from t')))")
+    if [[ "$CTRL_ROWS" == "stale-local" && "$LIVE_ROWS" == "from-snapshot" && ! -f "$WAL_LIVE/state.db-wal" ]]; then
+      pass "Snapshot DB replaced a SIGKILL WAL instead of replaying it"
+    else
+      fail "Leftover WAL replayed over the snapshot" "control=$CTRL_ROWS live=$LIVE_ROWS"
+    fi
+  fi
+fi
+if grep -q 'install_sqlite_file' "${REPO_ROOT}/scripts/deploy.sh" \
+  && ! grep -E 'cp -a .*\.db' "${REPO_ROOT}/scripts/deploy.sh" >/dev/null; then
+  pass "deploy.sh installs SQLite files without leaving a sibling WAL"
+else
+  fail "deploy.sh still copies database files with cp -a" ""
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 echo ""

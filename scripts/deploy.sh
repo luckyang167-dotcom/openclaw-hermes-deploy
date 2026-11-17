@@ -206,16 +206,16 @@ for dir in cron memories pairing sessions skills state; do
   fi
 done
 
-# Hermes default databases
+# Hermes default databases. install_sqlite_file drops leftover -wal/-shm so a
+# SIGKILL'd local writer cannot replay onto the snapshot.
 for db in state.db projects.db kanban.db; do
   SRC="${EXTRACT_DIR}/hermes-default-${db}"
   if [[ -f "$SRC" ]]; then
-    cp -a "$SRC" "${TARGET_HM}/${db}"
+    install_sqlite_file "$SRC" "${TARGET_HM}/${db}"
   fi
 done
 if [[ -f "${EXTRACT_DIR}/hermes-default-cron-executions.db" ]]; then
-  mkdir -p "${TARGET_HM}/cron"
-  cp -a "${EXTRACT_DIR}/hermes-default-cron-executions.db" "${TARGET_HM}/cron/executions.db"
+  install_sqlite_file "${EXTRACT_DIR}/hermes-default-cron-executions.db" "${TARGET_HM}/cron/executions.db"
 fi
 
 # --- Hermes coder profile ---
@@ -238,12 +238,11 @@ done
 for db in state.db projects.db; do
   SRC="${EXTRACT_DIR}/hermes-coder-${db}"
   if [[ -f "$SRC" ]]; then
-    cp -a "$SRC" "${CODER_DST}/${db}"
+    install_sqlite_file "$SRC" "${CODER_DST}/${db}"
   fi
 done
 if [[ -f "${EXTRACT_DIR}/hermes-coder-cron-executions.db" ]]; then
-  mkdir -p "${CODER_DST}/cron"
-  cp -a "${EXTRACT_DIR}/hermes-coder-cron-executions.db" "${CODER_DST}/cron/executions.db"
+  install_sqlite_file "${EXTRACT_DIR}/hermes-coder-cron-executions.db" "${CODER_DST}/cron/executions.db"
 fi
 
 # --- Hermes money-maker profile ---
@@ -266,12 +265,11 @@ done
 for db in state.db projects.db; do
   SRC="${EXTRACT_DIR}/hermes-mm-${db}"
   if [[ -f "$SRC" ]]; then
-    cp -a "$SRC" "${MM_DST}/${db}"
+    install_sqlite_file "$SRC" "${MM_DST}/${db}"
   fi
 done
 if [[ -f "${EXTRACT_DIR}/hermes-mm-cron-executions.db" ]]; then
-  mkdir -p "${MM_DST}/cron"
-  cp -a "${EXTRACT_DIR}/hermes-mm-cron-executions.db" "${MM_DST}/cron/executions.db"
+  install_sqlite_file "${EXTRACT_DIR}/hermes-mm-cron-executions.db" "${MM_DST}/cron/executions.db"
 fi
 
 # -----------------------------------------------------------------------------

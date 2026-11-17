@@ -394,6 +394,22 @@ except Exception as e:
   }
 }
 
+# Replace one SQLite file with a snapshot without replaying a leftover WAL.
+# stop_all_gateways SIGKILLs writers, so -wal/-shm stay next to the old file.
+# Copying the snapshot over the main db and then opening it (deploy's integrity
+# check does) replays those frames onto the snapshot. The snapshot rows are
+# gone and integrity_check still reports ok.
+install_sqlite_file() {
+  local src="$1" dest="$2" tmp
+  mkdir -p "$(dirname "$dest")"
+  tmp="$(mktemp "${dest}.XXXXXX")"
+  cp -a "$src" "$tmp"
+  # Drop sidecars before the snapshot becomes the db SQLite will open.
+  rm -f "${dest}-wal" "${dest}-shm"
+  mv -f "$tmp" "$dest"
+  rm -f "${dest}-wal" "${dest}-shm"
+}
+
 sqlite_integrity_check() {
   local db="$1"
   local result
