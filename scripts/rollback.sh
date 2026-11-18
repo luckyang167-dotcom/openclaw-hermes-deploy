@@ -52,26 +52,31 @@ ls -dt "${ROLLBACK_ROOT}"/pre-deploy-* 2>/dev/null | while read -r dir; do
 done
 
 # -----------------------------------------------------------------------------
-# 2.  Create emergency backup of current (failed) state
+# 2.  Stop services before copying the tree we are about to delete
+# -----------------------------------------------------------------------------
+# Same hazard as deploy: tar of a live WAL database can drop commits that a
+# checkpoint folded into the main file between the db read and the WAL read.
+log_info "Stopping all services…"
+stop_all_gateways || true
+sleep 2
+verify_no_gateway_processes
+
+# -----------------------------------------------------------------------------
+# 3.  Create emergency backup of current (failed) state
 # -----------------------------------------------------------------------------
 EMERGENCY_DIR="${ROLLBACK_ROOT}/emergency-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$EMERGENCY_DIR"
 log_info "Creating emergency backup of current state at $EMERGENCY_DIR…"
 
 if [[ -d "${HOME}/.openclaw" ]]; then
-  tar cf - -C "${HOME}" .openclaw 2>/dev/null | zstd -o "${EMERGENCY_DIR}/openclaw-emergency.tar.zst" || true
+  tar cf - -C "${HOME}" .openclaw | zstd -o "${EMERGENCY_DIR}/openclaw-emergency.tar.zst" \
+    || die "Emergency OpenClaw backup failed — current state was not deleted"
 fi
 if [[ -d "${HOME}/.hermes" ]]; then
-  tar cf - -C "${HOME}" .hermes 2>/dev/null | zstd -o "${EMERGENCY_DIR}/hermes-emergency.tar.zst" || true
+  tar cf - -C "${HOME}" .hermes | zstd -o "${EMERGENCY_DIR}/hermes-emergency.tar.zst" \
+    || die "Emergency Hermes backup failed — current state was not deleted"
 fi
 log_info "Emergency backup complete"
-
-# -----------------------------------------------------------------------------
-# 3.  Stop all services
-# -----------------------------------------------------------------------------
-log_info "Stopping all services…"
-stop_all_gateways || true
-sleep 2
 
 # -----------------------------------------------------------------------------
 # 4.  Restore from rollback

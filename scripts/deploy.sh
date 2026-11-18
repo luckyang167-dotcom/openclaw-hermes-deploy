@@ -90,21 +90,38 @@ log_info "Extracting archive…"
 zstd -d -c "$ARCHIVE" | tar xf - -C "$EXTRACT_DIR"
 
 # -----------------------------------------------------------------------------
-# 7.  Create local rollback backup
+# 7.  Stop target services before copying anything we might have to restore
+# -----------------------------------------------------------------------------
+# The rollback archive is the only copy of the pre-deploy databases once the
+# merge below replaces them. Tar of a live WAL database is not a consistent
+# snapshot: the db file can be copied, a checkpoint then truncates the WAL,
+# and tar stores that empty WAL. Committed rows are gone and rollback.sh
+# restores the hole. Stop writers first. verify_no_gateway_processes aborts
+# before any backup or delete if a gateway is still alive.
+log_info "Stopping all local services before deployment…"
+stop_all_gateways || log_warn "Some gateways may not have been running"
+sleep 2
+verify_no_gateway_processes
+
+# -----------------------------------------------------------------------------
+# 8.  Create local rollback backup
 # -----------------------------------------------------------------------------
 ROLLBACK_DIR="${REPO_ROOT}/.rollback/pre-deploy-${SNAPSHOT_TAG}-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$ROLLBACK_DIR"
 log_info "Creating local rollback backup at $ROLLBACK_DIR…"
 
-# Backup current OpenClaw state (if exists)
+# Backup current OpenClaw state (if exists). A failed tar must abort before
+# the merge deletes the live tree; there is no second copy.
 if [[ -d "${HOME}/.openclaw" ]]; then
-  tar cf - -C "${HOME}" .openclaw 2>/dev/null | zstd -o "${ROLLBACK_DIR}/openclaw-backup.tar.zst" || true
-  log_info "  OpenClaw backup: $(du -h "${ROLLBACK_DIR}/openclaw-backup.tar.zst" 2>/dev/null | cut -f1 || echo 'skipped')"
+  tar cf - -C "${HOME}" .openclaw | zstd -o "${ROLLBACK_DIR}/openclaw-backup.tar.zst" \
+    || die "OpenClaw rollback backup failed — deployment aborted before replacing live state"
+  log_info "  OpenClaw backup: $(du -h "${ROLLBACK_DIR}/openclaw-backup.tar.zst" | cut -f1)"
 fi
 
 if [[ -d "${HOME}/.hermes" ]]; then
-  tar cf - -C "${HOME}" .hermes 2>/dev/null | zstd -o "${ROLLBACK_DIR}/hermes-backup.tar.zst" || true
-  log_info "  Hermes backup: $(du -h "${ROLLBACK_DIR}/hermes-backup.tar.zst" 2>/dev/null | cut -f1 || echo 'skipped')"
+  tar cf - -C "${HOME}" .hermes | zstd -o "${ROLLBACK_DIR}/hermes-backup.tar.zst" \
+    || die "Hermes rollback backup failed — deployment aborted before replacing live state"
+  log_info "  Hermes backup: $(du -h "${ROLLBACK_DIR}/hermes-backup.tar.zst" | cut -f1)"
 fi
 
 # Record rollback metadata
@@ -116,13 +133,6 @@ cat > "${ROLLBACK_DIR}/metadata.json" <<METAEOF
   "pre_deploy_generation": "$(get_control_field generation)"
 }
 METAEOF
-
-# -----------------------------------------------------------------------------
-# 8.  Stop target services
-# -----------------------------------------------------------------------------
-log_info "Stopping all local services before deployment…"
-stop_all_gateways || log_warn "Some gateways may not have been running"
-sleep 2
 
 # -----------------------------------------------------------------------------
 # 9.  Profile-level merge

@@ -492,6 +492,88 @@ else
 fi
 
 # =============================================================================
+# Test 17: Rollback copies must not straddle a live SQLite checkpoint
+# =============================================================================
+echo "=== Test 17: Rollback archive vs live WAL checkpoint ==="
+
+# Interleaving that tar hits when a checkpoint lands between the db file and
+# its WAL: the copy of the db is missing the committed row, and the WAL copied
+# afterwards is empty. That pair is what rollback would restore.
+RACE_LIVE="${TMPDIR}/race-live"
+RACE_BAD="${TMPDIR}/race-bad"
+RACE_GOOD="${TMPDIR}/race-good"
+mkdir -p "$RACE_LIVE" "$RACE_BAD" "$RACE_GOOD"
+# Hold the connection open across both copies. SQLite checkpoints and deletes
+# the WAL when the last connection closes, which would hide the race.
+RACE_ROWS=$(python3 - "$RACE_LIVE" "$RACE_BAD" "$RACE_GOOD" <<'PY'
+import os, shutil, sqlite3, sys
+live, bad, good = sys.argv[1:4]
+conn = sqlite3.connect(os.path.join(live, "state.db"))
+conn.execute("PRAGMA journal_mode=WAL")
+conn.execute("CREATE TABLE t(v TEXT)")
+conn.execute("INSERT INTO t VALUES ('kept')")
+conn.commit()
+conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+conn.execute("INSERT INTO t VALUES ('committed-during-tar')")
+conn.commit()
+for ext in ("", "-wal", "-shm"):
+    shutil.copy2(os.path.join(live, "state.db" + ext), os.path.join(good, "state.db" + ext))
+# Unsafe order: copy the db, checkpoint (frames move into the live db only),
+# then copy the now-empty WAL.
+shutil.copy2(os.path.join(live, "state.db"), os.path.join(bad, "state.db"))
+conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+wal = os.path.join(live, "state.db-wal")
+if os.path.exists(wal):
+    shutil.copy2(wal, os.path.join(bad, "state.db-wal"))
+conn.close()
+
+def rows(path):
+    return ",".join(r[0] for r in sqlite3.connect(path).execute("select v from t"))
+
+print(rows(os.path.join(bad, "state.db")) + "|" + rows(os.path.join(good, "state.db")))
+PY
+)
+BAD_ROWS="${RACE_ROWS%%|*}"
+GOOD_ROWS="${RACE_ROWS#*|}"
+if [[ "$BAD_ROWS" == "kept" && "$GOOD_ROWS" == "kept,committed-during-tar" ]]; then
+  pass "Checkpoint between db and WAL drops a committed row; a quiesced pair keeps it"
+else
+  fail "WAL checkpoint interleaving did not behave as expected" "bad=$BAD_ROWS good=$GOOD_ROWS"
+fi
+
+# deploy.sh must stop and confirm writers are gone before it tars the tree,
+# and a failed tar must not be ignored. The merge replaces the live files.
+deploy_stop=$(grep -n 'stop_all_gateways || log_warn' "${REPO_ROOT}/scripts/deploy.sh" | head -1 | cut -d: -f1)
+deploy_verify=$(grep -n '^verify_no_gateway_processes$' "${REPO_ROOT}/scripts/deploy.sh" | head -1 | cut -d: -f1)
+deploy_backup=$(grep -n 'openclaw-backup.tar.zst' "${REPO_ROOT}/scripts/deploy.sh" | head -1 | cut -d: -f1)
+if [[ -n "$deploy_stop" && -n "$deploy_verify" && -n "$deploy_backup" \
+  && "$deploy_stop" -lt "$deploy_verify" && "$deploy_verify" -lt "$deploy_backup" ]]; then
+  pass "deploy.sh snapshots rollback only after gateways are confirmed stopped"
+else
+  fail "deploy.sh still archives the live tree" "stop=$deploy_stop verify=$deploy_verify backup=$deploy_backup"
+fi
+if grep -n 'tar cf - -C \"\${HOME}\"' "${REPO_ROOT}/scripts/deploy.sh" | grep -q '|| true'; then
+  fail "deploy.sh ignores a failed rollback tar" ""
+else
+  pass "deploy.sh aborts when the rollback tar fails"
+fi
+
+rollback_stop=$(grep -n 'stop_all_gateways || true' "${REPO_ROOT}/scripts/rollback.sh" | head -1 | cut -d: -f1)
+rollback_verify=$(grep -n '^verify_no_gateway_processes$' "${REPO_ROOT}/scripts/rollback.sh" | head -1 | cut -d: -f1)
+rollback_backup=$(grep -n 'openclaw-emergency.tar.zst' "${REPO_ROOT}/scripts/rollback.sh" | head -1 | cut -d: -f1)
+if [[ -n "$rollback_stop" && -n "$rollback_verify" && -n "$rollback_backup" \
+  && "$rollback_stop" -lt "$rollback_verify" && "$rollback_verify" -lt "$rollback_backup" ]]; then
+  pass "rollback.sh snapshots the current tree only after gateways are confirmed stopped"
+else
+  fail "rollback.sh still archives a live tree before deleting it" "stop=$rollback_stop verify=$rollback_verify backup=$rollback_backup"
+fi
+if grep -n 'tar cf - -C \"\${HOME}\"' "${REPO_ROOT}/scripts/rollback.sh" | grep -q '|| true'; then
+  fail "rollback.sh ignores a failed emergency tar" ""
+else
+  pass "rollback.sh aborts when the emergency tar fails"
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 echo ""
