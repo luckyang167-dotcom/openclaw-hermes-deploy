@@ -329,6 +329,10 @@ start_hermes_gateway() {
 }
 
 start_all_gateways() {
+  # stop_all_gateways uses `disable --now`, which persists across logout and
+  # reboot. A host that is active again must be enabled before it is started,
+  # or the next session comes up with every gateway down.
+  enable_all_gateways
   start_openclaw_gateway || return 1
   start_hermes_gateway default || return 1
   start_hermes_gateway coder || return 1

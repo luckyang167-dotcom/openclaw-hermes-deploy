@@ -102,6 +102,9 @@ log_info "Starting gateways…"
 if ! start_all_gateways; then
   log_error "Gateway start failed!"
   log_error "Reverting control to switching state…"
+  # start_all_gateways enables the units. Disable them again while this host
+  # is still switching, or a reboot would start gateways that are not active.
+  stop_all_gateways || true
   write_control "{
     \"status\": \"switching\",
     \"host_id\": \"\",
@@ -144,6 +147,7 @@ done
 if ! $HEALTH_OK; then
   log_error "Health check failed — some gateways not running"
   log_error "Reverting to switching state…"
+  stop_all_gateways || true
   write_control "{
     \"status\": \"switching\",
     \"host_id\": \"\",

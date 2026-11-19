@@ -492,6 +492,56 @@ else
 fi
 
 # =============================================================================
+# Test 17: Active start re-enables units disabled by stop_all_gateways
+# =============================================================================
+echo "=== Test 17: start_all_gateways re-enables units ==="
+SYSLOG="${TMPDIR}/systemctl.log"
+: > "$SYSLOG"
+systemctl() {
+  printf '%s\n' "$*" >> "$SYSLOG"
+  return 0
+}
+if start_all_gateways; then
+  unset -f systemctl
+else
+  unset -f systemctl
+  fail "start_all_gateways returned an error under the systemctl stub" ""
+fi
+
+if python3 - "$SYSLOG" << 'PY'
+import sys
+from pathlib import Path
+lines = Path(sys.argv[1]).read_text().splitlines()
+enables = [ln for ln in lines if ln.startswith("--user enable ")]
+starts = [ln for ln in lines if ln.startswith("--user start ")]
+expected = [
+    "openclaw-gateway",
+    "hermes-gateway-default",
+    "hermes-gateway-coder",
+    "hermes-gateway-money-maker",
+]
+got_enable = [ln.split()[-1] for ln in enables]
+got_start = [ln.split()[-1] for ln in starts]
+assert got_enable == expected, got_enable
+assert got_start == expected, got_start
+assert enables and starts and lines.index(enables[-1]) < lines.index(starts[0]), lines
+print("enable-before-start ok")
+PY
+then
+  pass "start_all_gateways enables every gateway before starting it"
+else
+  fail "start_all_gateways did not re-enable units" "$(cat "$SYSLOG")"
+fi
+
+# A failed promote must not leave those units enabled.
+fail_count=$(grep -c "stop_all_gateways" "${REPO_ROOT}/scripts/promote.sh" || true)
+if [[ "$fail_count" -ge 2 ]]; then
+  pass "promote failure paths disable gateways again"
+else
+  fail "promote does not disable gateways on both failure paths" "found $fail_count"
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 echo ""
